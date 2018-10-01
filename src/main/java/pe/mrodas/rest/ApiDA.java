@@ -14,17 +14,30 @@ public class ApiDA {
 
     public interface ResponseBodyParser {
         ApiError parse(ResponseBody body, ApiError apiError);
-
     }
 
-    public interface ErrorHandler {
-        void handle(ApiError error) throws ApiException;
+    public interface OnSuccess<T> {
+        void onSuccess(Response<T> response);
+    }
+
+    public interface OnErrorEnqueue {
+        void onError(ApiError apiError);
+    }
+
+    public interface OnErrorExecute {
+        void onError(ApiError apiError) throws ApiException;
+    }
+
+    public interface ProgressMethod {
+        void showProgress(boolean show);
     }
 
     private Retrofit retrofit;
     private boolean debugMode;
     private ResponseBodyParser errorBodyParser;
-    private ErrorHandler defaultErrorHandler;
+    private OnErrorExecute defaultErrorExecute;
+    private OnErrorEnqueue defaultErrorEnqueue;
+    private ProgressMethod progress;
 
     public void setBaseUrl(String baseUrl, OkHttpClient client, Converter.Factory... factories) {
         if (baseUrl == null) {
@@ -56,8 +69,16 @@ public class ApiDA {
         this.errorBodyParser = errorBodyParser;
     }
 
-    public void setDefaultErrorHandler(ErrorHandler defaultErrorHandler) {
-        this.defaultErrorHandler = defaultErrorHandler;
+    public void setDefaultErrorExecute(OnErrorExecute defaultErrorExecute) {
+        this.defaultErrorExecute = defaultErrorExecute;
+    }
+
+    public void setDefaultErrorEnqueue(OnErrorEnqueue defaultErrorEnqueue) {
+        this.defaultErrorEnqueue = defaultErrorEnqueue;
+    }
+
+    public void setProgress(ProgressMethod progress) {
+        this.progress = progress;
     }
 
     /***
@@ -89,25 +110,64 @@ public class ApiDA {
         return this.execute(call, null);
     }
 
-    public <T> T execute(Call<T> call, ErrorHandler errorHandler) throws IOException, ApiException {
+    public <T> T execute(Call<T> call, OnErrorExecute onErrorExecute) throws IOException, ApiException {
         Response<T> response = call.execute();
         if (response.isSuccessful()) {
             return response.body();
         }
-        ApiError error = this.buildError(call, response);
-        if (error != null) {
-            if (errorHandler != null) {
-                errorHandler.handle(error);
-            } else if (defaultErrorHandler != null) {
-                defaultErrorHandler.handle(error);
+        ApiError apiError = this.buildError(call, response);
+        if (apiError != null) {
+            if (onErrorExecute != null) {
+                onErrorExecute.onError(apiError);
+            } else if (defaultErrorExecute != null) {
+                defaultErrorExecute.onError(apiError);
             } else {
-                throw new ApiException(error);
+                throw new ApiException(apiError);
             }
         }
         return null;
     }
 
-    private <T> ApiError buildError(Call<T> call, Response<T> response) {
+    public <T> void enqueue(Call<T> call, OnSuccess<T> success) {
+        this.enqueue(call, success, null);
+    }
+
+    public <T> void enqueue(Call<T> call, OnSuccess<T> success, OnErrorEnqueue error) {
+        call.enqueue(new ApiCallback<T>(this, success, error));
+    }
+
+    void showProgress(boolean show) {
+        if (progress != null) {
+            progress.showProgress(show);
+        }
+    }
+
+    void handleErrorEnqueue(ApiError apiError, OnErrorEnqueue error) {
+        if (apiError != null) {
+            if (error != null) {
+                error.onError(apiError);
+            } else if (defaultErrorEnqueue != null) {
+                defaultErrorEnqueue.onError(apiError);
+            }
+        }
+    }
+
+    public <T> boolean isResponseBodyNullError(Response<T> response, int... httpStatusCodesException) {
+        if (httpStatusCodesException == null) {
+            return response.body() == null;
+        }
+        if (response.body() == null) {
+            for (int statusCode : httpStatusCodesException) {
+                if (response.raw().code() == statusCode) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    <T> ApiError buildError(Call<T> call, Response<T> response) {
         ApiError error = new ApiError(response.code())
                 .setUserMessage(response.message());
         ResponseBody errorBody = response.errorBody();
@@ -134,5 +194,4 @@ public class ApiDA {
         }
         return error;
     }
-
 }
