@@ -35,8 +35,8 @@ public class ApiDA {
     private Retrofit retrofit;
     private boolean debugMode;
     private ResponseBodyParser errorBodyParser;
-    private OnErrorExecute defaultErrorExecute;
-    private OnErrorEnqueue defaultErrorEnqueue;
+    private OnErrorExecute defaultOnErrorExecute;
+    private OnErrorEnqueue defaultOnErrorEnqueue;
     private ProgressMethod progress;
 
     public void setBaseUrl(String baseUrl, OkHttpClient client, Converter.Factory... factories) {
@@ -69,12 +69,12 @@ public class ApiDA {
         this.errorBodyParser = errorBodyParser;
     }
 
-    public void setDefaultErrorExecute(OnErrorExecute defaultErrorExecute) {
-        this.defaultErrorExecute = defaultErrorExecute;
+    public void setDefaultOnErrorExecute(OnErrorExecute defaultOnErrorExecute) {
+        this.defaultOnErrorExecute = defaultOnErrorExecute;
     }
 
-    public void setDefaultErrorEnqueue(OnErrorEnqueue defaultErrorEnqueue) {
-        this.defaultErrorEnqueue = defaultErrorEnqueue;
+    public void setDefaultOnErrorEnqueue(OnErrorEnqueue defaultOnErrorEnqueue) {
+        this.defaultOnErrorEnqueue = defaultOnErrorEnqueue;
     }
 
     public void setProgress(ProgressMethod progress) {
@@ -119,8 +119,8 @@ public class ApiDA {
         if (apiError != null) {
             if (onErrorExecute != null) {
                 onErrorExecute.onError(apiError);
-            } else if (defaultErrorExecute != null) {
-                defaultErrorExecute.onError(apiError);
+            } else if (defaultOnErrorExecute != null) {
+                defaultOnErrorExecute.onError(apiError);
             } else {
                 throw new ApiException(apiError);
             }
@@ -146,8 +146,8 @@ public class ApiDA {
         if (apiError != null) {
             if (error != null) {
                 error.onError(apiError);
-            } else if (defaultErrorEnqueue != null) {
-                defaultErrorEnqueue.onError(apiError);
+            } else if (defaultOnErrorEnqueue != null) {
+                defaultOnErrorEnqueue.onError(apiError);
             }
         }
     }
